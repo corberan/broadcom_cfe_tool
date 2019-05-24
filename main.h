@@ -5,6 +5,8 @@
 #ifndef BROADCOM_CFE_TOOL_MAIN_H
 #define BROADCOM_CFE_TOOL_MAIN_H
 
+#define VERSION_STR "v0.2.0"
+
 #define READ_BUFFER_SIZE    0x100u
 
 #define DEF_EMBED_NVRAM_OFFSET      0x400u

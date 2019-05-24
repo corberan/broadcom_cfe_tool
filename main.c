@@ -331,7 +331,7 @@ int main(int argc, char *argv[]) {
     n_errors = arg_parse(argc, argv, argtable);
 
     if (version->count > 0) {
-        printf("Broadcom CFE tool v0.1.0\n");
+        printf("Broadcom CFE tool %s\n", VERSION_STR);
         printf("Copyright 2019 spoon\n");
         exit_code = 0;
         goto exit;
