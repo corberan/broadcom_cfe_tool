@@ -5,8 +5,8 @@
 #include "argtable3.h"
 
 struct arg_lit *compress, *decompress, *help, *version;
-struct arg_int *embed_nvram_offset, *embed_nvram_size;
-struct arg_int *nvram_partition_space_size;
+struct arg_str *embed_nvram_offset, *embed_nvram_size;
+struct arg_str *nvram_partition_space_size;
 struct arg_file *input_file_path, *output_file_path;
 struct arg_end *end;
 
@@ -85,8 +85,8 @@ void explain_lzma_err(int ret) {
     fprintf(stderr, "%s\n", err_msg);
 }
 
-int compress_to_cfe(const char *nvram_text_file_path, const char *cfe_file_path, unsigned int output_offset,
-                    unsigned int output_size) {
+int
+compress_to_cfe(const char *nvram_text_file_path, const char *cfe_file_path, long output_offset, size_t output_size) {
     FILE * fp_input;
     errno_t fopen_s_err_ret = fopen_s(&fp_input, nvram_text_file_path, "rb");
     if (fopen_s_err_ret != 0) {
@@ -104,7 +104,7 @@ int compress_to_cfe(const char *nvram_text_file_path, const char *cfe_file_path,
     }
 
     char *embed_nvram_uncompressed = NULL;
-    size_t embed_nvram_uncompressed_size = sizeof(char) * (NVRAM_HEADER_SIZE + input_file_size);
+    size_t embed_nvram_uncompressed_size = sizeof(char) * (NVRAM_HEADER_SIZE + (size_t) input_file_size);
     embed_nvram_uncompressed = (char *) malloc(embed_nvram_uncompressed_size);
     if (embed_nvram_uncompressed == NULL) {
         perror("Error while malloc for embed_nvram_uncompressed.\n");
@@ -200,9 +200,9 @@ int compress_to_cfe(const char *nvram_text_file_path, const char *cfe_file_path,
         exit(EXIT_SUCCESS);
     }
 
-    FILE * fp_output;
+    FILE * fp_output = NULL;
     fopen_s_err_ret = fopen_s(&fp_output, cfe_file_path, "r+b");
-    if (fopen_s_err_ret != 0) {
+    if (fopen_s_err_ret != 0 || fp_output == NULL) {
         perror("Error while opening the output file.\n");
         exit(EXIT_FAILURE);
     }
@@ -217,8 +217,10 @@ int compress_to_cfe(const char *nvram_text_file_path, const char *cfe_file_path,
     return 0;
 }
 
-int decompress_from_cfe(const char *cfe_file_path, const char *nvram_text_file_path, unsigned int read_offset,
-                        unsigned int read_count, unsigned int nvram_partition_size) {
+int
+decompress_from_cfe(const char *cfe_file_path, const char *nvram_text_file_path, long read_offset,
+                    size_t read_bytes_count,
+                    size_t nvram_partition_size) {
     FILE * fp_input;
     errno_t fopen_s_err_ret = fopen_s(&fp_input, cfe_file_path, "rb");
     if (fopen_s_err_ret != 0) {
@@ -236,7 +238,7 @@ int decompress_from_cfe(const char *cfe_file_path, const char *nvram_text_file_p
     }
 
     if (fseek(fp_input, read_offset, SEEK_SET) != 0) {
-        fprintf(stderr, "Wrong offset %d, larger than file size %ld.\n", read_offset, input_file_size);
+        fprintf(stderr, "Wrong offset %ld, larger than file size %ld.\n", read_offset, input_file_size);
         exit(EXIT_SUCCESS);
     }
 
@@ -249,10 +251,11 @@ int decompress_from_cfe(const char *cfe_file_path, const char *nvram_text_file_p
     }
     memset(embed_nvram_compressed, 0, embed_nvram_compressed_size);
 
-    size_t num_read = fread_s(embed_nvram_compressed, embed_nvram_compressed_size, sizeof(char), read_count, fp_input);
-    if (num_read != read_count) {
-        fprintf(stderr, "Expected reading size is %d, but the actual number of reads is %d.\n",
-                sizeof(char) * read_count, num_read);
+    size_t num_read = fread_s(embed_nvram_compressed, embed_nvram_compressed_size, sizeof(char), read_bytes_count,
+                              fp_input);
+    if (num_read != read_bytes_count) {
+        fprintf(stderr, "Expected reading size is %zu, but the actual number of reads is %zu.\n", read_bytes_count,
+                num_read);
         exit(EXIT_SUCCESS);
     }
 
@@ -288,13 +291,13 @@ int decompress_from_cfe(const char *cfe_file_path, const char *nvram_text_file_p
         }
     }
 
-    FILE * fp_output;
+    FILE * fp_output = NULL;
     fopen_s_err_ret = fopen_s(&fp_output, nvram_text_file_path, "wb");
-    if (fopen_s_err_ret != 0) {
+    if (fopen_s_err_ret != 0 || fp_output == NULL) {
         perror("Error while opening the output file.\n");
         exit(EXIT_FAILURE);
     }
-    fwrite(embed_nvram_uncompressed, sizeof(char), destLen, fp_output);
+    fwrite(embed_nvram_uncompressed, sizeof(char), embed_nvram_uncompressed_size, fp_output);
 
     free(embed_nvram_uncompressed);
     free(embed_nvram_compressed);
@@ -311,10 +314,10 @@ int main(int argc, char *argv[]) {
             version = arg_litn("v", "version", 0, 1, "display version info and exit"),
             compress = arg_litn("z", "compress", 0, 1, "compress NVRAM data to CFE file"),
             decompress = arg_litn("d", "decompress", 0, 1, "decompress embedded NVRAM data from CFE file"),
-            embed_nvram_offset = arg_intn("b", "offset", "<n>", 0, 1,
+            embed_nvram_offset = arg_strn("b", "offset", "<n>", 0, 1,
                                           "offset within output to embed NVRAM (default 0x400)"),
-            embed_nvram_size = arg_intn("c", "count", "<n>", 0, 1, "bytes of embed NVRAM to write (default 0x1000)"),
-            nvram_partition_space_size = arg_intn(NULL, "nvram_space", "<n>", 0, 1,
+            embed_nvram_size = arg_strn("c", "count", "<n>", 0, 1, "bytes of embed NVRAM to write (default 0x1000)"),
+            nvram_partition_space_size = arg_strn(NULL, "nvram_space", "<n>", 0, 1,
                                                   "size of the NVRAM partition space (default 0x10000)"),
             input_file_path = arg_file1("i", "input", "<file>", "input file"),
             output_file_path = arg_file1("o", "output", "<file>", "output file"),
@@ -351,15 +354,16 @@ int main(int argc, char *argv[]) {
         goto exit;
     }
 
-    unsigned int offset = DEF_EMBED_NVRAM_OFFSET, size = DEF_EMBED_NVRAM_SIZE, space = DEF_NVRAM_PARTITION_SPACE;
-    if (embed_nvram_offset->count > 0 && *embed_nvram_offset->ival > 0) {
-        offset = *embed_nvram_offset->ival;
+    long offset = DEF_EMBED_NVRAM_OFFSET;
+    size_t size = DEF_EMBED_NVRAM_SIZE, space = DEF_NVRAM_PARTITION_SPACE;
+    if (embed_nvram_offset->count > 0 && *embed_nvram_offset->sval > 0) {
+        offset = strtol(*embed_nvram_offset->sval, NULL, 0);
     }
-    if (embed_nvram_size->count > 0 && *embed_nvram_size->ival > 0) {
-        size = *embed_nvram_size->ival;
+    if (embed_nvram_size->count > 0 && *embed_nvram_size->sval > 0) {
+        size = (size_t) strtol(*embed_nvram_size->sval, NULL, 0);
     }
-    if (nvram_partition_space_size->count > 0 && *nvram_partition_space_size->ival > 0) {
-        space = *nvram_partition_space_size->ival;
+    if (nvram_partition_space_size->count > 0 && *nvram_partition_space_size->sval > 0) {
+        space = (size_t) strtol(*nvram_partition_space_size->sval, NULL, 0);
     }
 
     if (compress->count > 0 && decompress->count == 0) {
