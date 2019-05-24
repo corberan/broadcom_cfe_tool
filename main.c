@@ -67,19 +67,19 @@ void explain_lzma_err(int ret) {
     char *err_msg = NULL;
     switch (ret) {
         case SZ_ERROR_DATA:
-            err_msg = "LzmaCompress: Data error.";
+            err_msg = "Lzma: Data error.";
             break;
         case SZ_ERROR_MEM:
-            err_msg = "LzmaCompress: Memory allocation error.";
+            err_msg = "Lzma: Memory allocation error.";
             break;
         case SZ_ERROR_UNSUPPORTED:
-            err_msg = "LzmaCompress: Unsupported properties.";
+            err_msg = "Lzma: Unsupported properties.";
             break;
         case SZ_ERROR_INPUT_EOF:
-            err_msg = "LzmaCompress: It needs more bytes in input buffer (src).";
+            err_msg = "Lzma: It needs more bytes in input buffer (src).";
             break;
         default:
-            err_msg = "LzmaCompress: Unknown error.";
+            err_msg = "Lzma: Unknown error.";
             break;
     }
     fprintf(stderr, "%s\n", err_msg);
@@ -243,7 +243,7 @@ decompress_from_cfe(const char *cfe_file_path, const char *nvram_text_file_path,
     }
 
     char *embed_nvram_compressed = NULL;
-    size_t embed_nvram_compressed_size = sizeof(char) * DEF_EMBED_NVRAM_SIZE;
+    size_t embed_nvram_compressed_size = sizeof(char) * read_bytes_count;
     embed_nvram_compressed = (char *) malloc(embed_nvram_compressed_size);
     if (embed_nvram_compressed == NULL) {
         perror("Error while malloc for embed_nvram_compressed.\n");
