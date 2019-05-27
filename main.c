@@ -1,8 +1,4 @@
-#include <stdio.h>
-#include <stdlib.h>
 #include "main.h"
-#include "lzma/LzmaLib.h"
-#include "argtable3.h"
 
 struct arg_lit *compress, *decompress, *help, *version;
 struct arg_str *embed_nvram_offset, *embed_nvram_size;
@@ -217,6 +213,7 @@ compress_to_cfe(const char *nvram_text_file_path, const char *cfe_file_path, lon
     return 0;
 }
 
+#ifdef USE_LZMA_UNCOMPRESS
 int
 decompress_from_cfe(const char *cfe_file_path, const char *nvram_text_file_path, long read_offset,
                     size_t read_bytes_count,
@@ -307,6 +304,130 @@ decompress_from_cfe(const char *cfe_file_path, const char *nvram_text_file_path,
 
     return 0;
 }
+
+#else
+
+static void *SzAlloc(void *p, size_t size) {
+    p = p;
+    return MyAlloc(size);
+}
+
+static void SzFree(void *p, void *address) {
+    p = p;
+    MyFree(address);
+}
+
+static ISzAlloc g_Alloc = {SzAlloc, SzFree};
+
+// release/src-rt-7.x.main/src/shared/nvram_rw.c -  _nvram_read
+int decompress_from_cfe(const char *cfe_file_path, const char *nvram_text_file_path, unsigned long read_offset,
+                        size_t read_bytes_count,
+                        size_t nvram_partition_size) {
+
+    FILE * fp_input;
+    errno_t fopen_s_err_ret = fopen_s(&fp_input, cfe_file_path, "rb");
+    if (fopen_s_err_ret != 0) {
+        perror("Error while opening the input file.\n");
+        exit(EXIT_FAILURE);
+    }
+
+    long input_file_size;
+    fseek(fp_input, 0, SEEK_END);
+    input_file_size = ftell(fp_input);
+    rewind(fp_input);
+    if (input_file_size < 1) {
+        fprintf(stderr, "Input file is empty.\n");
+        exit(EXIT_SUCCESS);
+    }
+
+    if (fseek(fp_input, read_offset, SEEK_SET) != 0) {
+        fprintf(stderr, "Wrong offset %ld, larger than file size %ld.\n", read_offset, input_file_size);
+        exit(EXIT_SUCCESS);
+    }
+
+    char *embed_nvram_compressed = NULL;
+    size_t embed_nvram_compressed_size = sizeof(char) * (read_bytes_count + 1);
+    embed_nvram_compressed = (char *) malloc(embed_nvram_compressed_size);
+    if (embed_nvram_compressed == NULL) {
+        perror("Error while malloc for embed_nvram_compressed.\n");
+        exit(EXIT_FAILURE);
+    }
+    memset(embed_nvram_compressed, 0, embed_nvram_compressed_size);
+
+    size_t num_read = fread_s(embed_nvram_compressed, embed_nvram_compressed_size, sizeof(char), read_bytes_count,
+                              fp_input);
+    if (num_read != read_bytes_count) {
+        fprintf(stderr, "Expected reading size is %zu, but the actual number of reads is %zu.\n", read_bytes_count,
+                num_read);
+        exit(EXIT_SUCCESS);
+    }
+
+    const NVRAM_HEADER *embed_nvram_header = NULL;
+    embed_nvram_header = (NVRAM_HEADER *) &embed_nvram_compressed[0];
+    if (embed_nvram_header->magic != NVRAM_MAGIC) {
+        fprintf(stderr, "Input data if not correct.\n");
+        return 1;
+    }
+
+    char *embed_nvram_uncompressed = NULL;
+    size_t embed_nvram_uncompressed_size = sizeof(char) * (embed_nvram_header->len);
+    embed_nvram_uncompressed = (char *) malloc(embed_nvram_uncompressed_size);
+    if (embed_nvram_uncompressed == NULL) {
+        perror("Error while malloc for embed_nvram_uncompressed.\n");
+        exit(EXIT_FAILURE);
+    }
+    memset(embed_nvram_uncompressed, 0, embed_nvram_uncompressed_size);
+
+    unsigned int dst_len = embed_nvram_header->len;
+    unsigned int src_len = nvram_partition_size - LZMA_PROPS_SIZE - NVRAM_HEADER_SIZE;
+    unsigned char *lzma_data = (unsigned char *) &embed_nvram_compressed[NVRAM_HEADER_SIZE];
+    CLzmaDec state;
+    SRes res;
+    ELzmaStatus status;
+
+    LzmaDec_Construct(&state);
+    res = LzmaDec_Allocate(&state, lzma_data, LZMA_PROPS_SIZE, &g_Alloc);
+    if (res != SZ_OK) {
+        printf("Error Initializing LZMA Library\n");
+        return -19;
+    }
+    LzmaDec_Init(&state);
+    res = LzmaDec_DecodeToBuf(&state,
+                              (unsigned char *) &embed_nvram_uncompressed[0], &dst_len,
+                              &lzma_data[LZMA_PROPS_SIZE], &src_len,
+                              LZMA_FINISH_ANY,
+                              &status);
+
+    LzmaDec_Free(&state, &g_Alloc);
+    if (res != SZ_OK) {
+        explain_lzma_err(res);
+        return -19;
+    }
+
+    for (size_t i = 0; i < dst_len && i < embed_nvram_uncompressed_size; i++) {
+        if (embed_nvram_uncompressed[i] == 0) {
+            embed_nvram_uncompressed[i] = 10;
+        }
+    }
+
+    FILE * fp_output = NULL;
+    fopen_s_err_ret = fopen_s(&fp_output, nvram_text_file_path, "wb");
+    if (fopen_s_err_ret != 0 || fp_output == NULL) {
+        perror("Error while opening the output file.\n");
+        exit(EXIT_FAILURE);
+    }
+    fwrite(embed_nvram_uncompressed, sizeof(char), embed_nvram_uncompressed_size, fp_output);
+
+    free(embed_nvram_uncompressed);
+    free(embed_nvram_compressed);
+
+    fclose(fp_input);
+    fclose(fp_output);
+
+    return 0;
+}
+
+#endif
 
 int main(int argc, char *argv[]) {
     void *argtable[] = {
