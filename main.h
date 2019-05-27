@@ -5,7 +5,14 @@
 #ifndef BROADCOM_CFE_TOOL_MAIN_H
 #define BROADCOM_CFE_TOOL_MAIN_H
 
-#define VERSION_STR "v0.2.0"
+#include <stdio.h>
+#include <stdlib.h>
+#include "lzma/LzmaLib.h"
+#include "lzma/LzmaDec.h"
+#include "lzma/Alloc.h"
+#include "argtable3.h"
+
+#define VERSION_STR "v0.2.1"
 
 #define READ_BUFFER_SIZE    0x100u
 
