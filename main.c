@@ -2,7 +2,6 @@
 
 struct arg_lit *compress, *decompress, *help, *version;
 struct arg_str *embed_nvram_offset, *embed_nvram_size;
-struct arg_str *nvram_partition_space_size;
 struct arg_file *input_file_path, *output_file_path;
 struct arg_end *end;
 
@@ -160,7 +159,7 @@ compress_to_cfe(const char *nvram_text_file_path, const char *cfe_file_path, lon
     embed_nvram_header->config_ncdl = sdram_ncdl;
 
     char *embed_nvram_compressed = NULL;
-    size_t embed_nvram_compressed_size = sizeof(char) * DEF_EMBED_NVRAM_SIZE;
+    size_t embed_nvram_compressed_size = sizeof(char) * (DEF_EMBED_NVRAM_SIZE - 4);
     embed_nvram_compressed = (char *) malloc(embed_nvram_compressed_size);
     if (embed_nvram_compressed == NULL) {
         perror("Error while malloc for embed_nvram_compressed.\n");
@@ -173,7 +172,7 @@ compress_to_cfe(const char *nvram_text_file_path, const char *cfe_file_path, lon
     }
 
     size_t output_props_size = LZMA_PROPS_SIZE;
-    size_t dest_len = embed_nvram_compressed_size - NVRAM_HEADER_SIZE;
+    size_t dest_len = embed_nvram_compressed_size - NVRAM_HEADER_SIZE - LZMA_PROPS_SIZE;
     size_t src_len = embed_nvram_header->len;
 
     int ret = LzmaCompress(
@@ -321,8 +320,7 @@ static ISzAlloc g_Alloc = {SzAlloc, SzFree};
 
 // release/src-rt-7.x.main/src/shared/nvram_rw.c -  _nvram_read
 int decompress_from_cfe(const char *cfe_file_path, const char *nvram_text_file_path, unsigned long read_offset,
-                        size_t read_bytes_count,
-                        size_t nvram_partition_size) {
+                        size_t read_bytes_count) {
 
     FILE * fp_input;
     errno_t fopen_s_err_ret = fopen_s(&fp_input, cfe_file_path, "rb");
@@ -346,7 +344,7 @@ int decompress_from_cfe(const char *cfe_file_path, const char *nvram_text_file_p
     }
 
     char *embed_nvram_compressed = NULL;
-    size_t embed_nvram_compressed_size = sizeof(char) * (read_bytes_count + 1);
+    size_t embed_nvram_compressed_size = sizeof(char) * read_bytes_count;
     embed_nvram_compressed = (char *) malloc(embed_nvram_compressed_size);
     if (embed_nvram_compressed == NULL) {
         perror("Error while malloc for embed_nvram_compressed.\n");
@@ -379,7 +377,7 @@ int decompress_from_cfe(const char *cfe_file_path, const char *nvram_text_file_p
     memset(embed_nvram_uncompressed, 0, embed_nvram_uncompressed_size);
 
     unsigned int dst_len = embed_nvram_header->len;
-    unsigned int src_len = nvram_partition_size - LZMA_PROPS_SIZE - NVRAM_HEADER_SIZE;
+    unsigned int src_len = embed_nvram_compressed_size - LZMA_PROPS_SIZE - NVRAM_HEADER_SIZE;
     unsigned char *lzma_data = (unsigned char *) &embed_nvram_compressed[NVRAM_HEADER_SIZE];
     CLzmaDec state;
     SRes res;
@@ -438,8 +436,6 @@ int main(int argc, char *argv[]) {
             embed_nvram_offset = arg_strn("b", "offset", "<n>", 0, 1,
                                           "offset within output to embed NVRAM (default 0x400)"),
             embed_nvram_size = arg_strn("c", "count", "<n>", 0, 1, "bytes of embed NVRAM to write (default 0x1000)"),
-            nvram_partition_space_size = arg_strn(NULL, "nvram_space", "<n>", 0, 1,
-                                                  "size of the NVRAM partition space (default 0x10000)"),
             input_file_path = arg_file1("i", "input", "<file>", "input file"),
             output_file_path = arg_file1("o", "output", "<file>", "output file"),
             end = arg_end(20),
@@ -476,23 +472,19 @@ int main(int argc, char *argv[]) {
     }
 
     long offset = DEF_EMBED_NVRAM_OFFSET;
-    size_t size = DEF_EMBED_NVRAM_SIZE, space = DEF_NVRAM_PARTITION_SPACE;
+    size_t size = DEF_EMBED_NVRAM_SIZE;
     if (embed_nvram_offset->count > 0 && *embed_nvram_offset->sval > 0) {
         offset = strtol(*embed_nvram_offset->sval, NULL, 0);
     }
     if (embed_nvram_size->count > 0 && *embed_nvram_size->sval > 0) {
         size = (size_t) strtol(*embed_nvram_size->sval, NULL, 0);
     }
-    if (nvram_partition_space_size->count > 0 && *nvram_partition_space_size->sval > 0) {
-        space = (size_t) strtol(*nvram_partition_space_size->sval, NULL, 0);
-    }
 
     if (compress->count > 0 && decompress->count == 0) {
         // size - 4 comes from nvserial_6.x.4708 line 719
         exit_code = compress_to_cfe(*input_file_path->filename, *output_file_path->filename, offset, size - 4);
     } else if (decompress->count > 0 && compress->count == 0) {
-        exit_code = decompress_from_cfe(*input_file_path->filename, *output_file_path->filename, offset, size - 4,
-                                        space);
+        exit_code = decompress_from_cfe(*input_file_path->filename, *output_file_path->filename, offset, size - 4);
     } else {
         printf("Try '%s --help' for more information.\n", program_name);
         exit_code = 1;

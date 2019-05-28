@@ -12,13 +12,12 @@
 #include "lzma/Alloc.h"
 #include "argtable3.h"
 
-#define VERSION_STR "v0.2.1"
+#define VERSION_STR "v0.2.2"
 
 #define READ_BUFFER_SIZE    0x100u
 
 #define DEF_EMBED_NVRAM_OFFSET      0x400u
 #define DEF_EMBED_NVRAM_SIZE        0x1000u
-#define DEF_NVRAM_PARTITION_SPACE   0x10000u
 
 #define NVRAM_HEADER_SIZE   20
 #define NVRAM_MAGIC         0x48534C46u    /* 'FLSH' */
