@@ -3,5 +3,9 @@ project(broadcom_cfe_tool C)
 
 set(CMAKE_C_STANDARD 11)
 
-add_executable(broadcom_cfe_tool main.h main.c lzma/Alloc.c lzma/Alloc.h lzma/LzFind.c lzma/LzFind.h lzma/LzHash.h lzma/LzmaDec.c lzma/LzmaDec.h lzma/LzmaEnc.c lzma/LzmaEnc.h lzma/LzmaLib.c lzma/LzmaLib.h lzma/Types.h argtable/argtable3.h argtable/argtable3.c)
-include_directories(lzma, argtable)
+aux_source_directory(. DIR_SRCS)
+add_subdirectory(lzma)
+add_subdirectory(argtable)
+
+add_executable(broadcom_cfe_tool main.c)
+target_link_libraries(broadcom_cfe_tool lzma argtable)
