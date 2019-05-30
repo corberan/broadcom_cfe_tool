@@ -59,22 +59,23 @@ const char *get_nvram_value(const char *nvram, size_t nvram_size, char *name) {
 }
 
 void explain_lzma_err(int ret) {
-    char *err_msg = NULL;
+#define ERR_MSG_LEN 128
+    char err_msg[ERR_MSG_LEN] = {0};
     switch (ret) {
         case SZ_ERROR_DATA:
-            err_msg = "Lzma: Data error.";
+            sprintf_s(err_msg, ERR_MSG_LEN, "Lzma: Data error.");
             break;
         case SZ_ERROR_MEM:
-            err_msg = "Lzma: Memory allocation error.";
+            sprintf_s(err_msg, ERR_MSG_LEN, "Lzma: Memory allocation error.");
             break;
         case SZ_ERROR_UNSUPPORTED:
-            err_msg = "Lzma: Unsupported properties.";
+            sprintf_s(err_msg, ERR_MSG_LEN, "Lzma: Unsupported properties.");
             break;
         case SZ_ERROR_INPUT_EOF:
-            err_msg = "Lzma: It needs more bytes in input buffer (src).";
+            sprintf_s(err_msg, ERR_MSG_LEN, "Lzma: It needs more bytes in input buffer (src).");
             break;
         default:
-            err_msg = "Lzma: Unknown error.";
+            sprintf_s(err_msg, ERR_MSG_LEN, "Lzma: Error code %d.", ret);
             break;
     }
     fprintf(stderr, "%s\n", err_msg);
@@ -376,8 +377,8 @@ int decompress_from_cfe(const char *cfe_file_path, const char *nvram_text_file_p
     }
     memset(embed_nvram_uncompressed, 0, embed_nvram_uncompressed_size);
 
-    unsigned int dst_len = embed_nvram_header->len;
-    unsigned int src_len = embed_nvram_compressed_size - LZMA_PROPS_SIZE - NVRAM_HEADER_SIZE;
+    SizeT dst_len = embed_nvram_header->len;
+    SizeT src_len = embed_nvram_compressed_size - LZMA_PROPS_SIZE - NVRAM_HEADER_SIZE;
     unsigned char *lzma_data = (unsigned char *) &embed_nvram_compressed[NVRAM_HEADER_SIZE];
     CLzmaDec state;
     SRes res;
@@ -387,7 +388,7 @@ int decompress_from_cfe(const char *cfe_file_path, const char *nvram_text_file_p
     res = LzmaDec_Allocate(&state, lzma_data, LZMA_PROPS_SIZE, &g_Alloc);
     if (res != SZ_OK) {
         printf("Error Initializing LZMA Library\n");
-        return -19;
+        return res;
     }
     LzmaDec_Init(&state);
     res = LzmaDec_DecodeToBuf(&state,
@@ -399,7 +400,7 @@ int decompress_from_cfe(const char *cfe_file_path, const char *nvram_text_file_p
     LzmaDec_Free(&state, &g_Alloc);
     if (res != SZ_OK) {
         explain_lzma_err(res);
-        return -19;
+        return res;
     }
 
     for (size_t i = 0; i < dst_len && i < embed_nvram_uncompressed_size; i++) {
