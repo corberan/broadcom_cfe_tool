@@ -15,7 +15,6 @@ cp .\mtd0.bin .\mtd0_new.bin
 -d, --decompress          decompress embedded NVRAM data from CFE file
 -b, --offset=<n>          offset within output to embed NVRAM (default 0x400)
 -c, --count=<n>           bytes of embed NVRAM to write (default 0x1000)
---nvram_space=<n>         size of the NVRAM partition space (default 0x10000)
 -i, --input=<file>        input file
 -o, --output=<file>       output file
 ```
